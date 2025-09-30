@@ -1,0 +1,159 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple Drag & Drop Grid</title>
+  <style>
+    *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
+    body{margin:0;display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;background:#111;color:#eee}
+    .palette,.sheet{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:10px}
+    h2{margin:0 0 8px;font-size:14px;color:#bbb}
+    .item{padding:8px 10px;margin:6px 0;border:1px solid #313131;border-radius:8px;background:#191919;cursor:grab}
+    .grid{width:100%;border-collapse:collapse;table-layout:fixed}
+    .grid th,.grid td{border:1px solid #2a2a2a;padding:6px}
+    .grid thead th{background:#161616;color:#bbb}
+    .grid tbody th{background:#161616;color:#bbb;width:140px}
+    .cell{height:44px;display:flex;align-items:center;justify-content:center}
+    .empty-state{color:#777;font-size:13px;padding:4px 0}
+  </style>
+</head>
+<body>
+  <!-- LEFT: simple list of draggable "Django" objects -->
+  <section class="palette" id="palette">
+    <h2>Servers</h2>
+    {% for server in servers %}
+      <div
+        class="item"
+        draggable="true"
+        data-id="{{ server.id }}"
+        data-label="{{ server.name }}"
+        data-upsell-score="{{ server.upsellScore }}"
+        data-section-assigned="{{ server.sectionAssigned }}"
+        data-time-in="{{ server.timeIn|date:'c' }}"
+        data-hours-scheduled="{{ server.hoursScheduled }}"
+        data-length-of-employment="{{ server.length_of_employment }}"
+        data-max-guests="{{ server.max_guests }}"
+        data-pyos="{{ server.pyos }}"
+        data-pitty="{{ server.pitty }}"
+      >{{ server.name }}</div>
+    {% empty %}
+      <p class="empty-state">No servers available. Add some in the admin.</p>
+    {% endfor %}
+  </section>
+
+  <!-- RIGHT: minimal spreadsheet-like table -->
+  <section class="sheet">
+    <h2>Sections Grid</h2>
+    <table class="grid" id="grid">
+      <thead>
+        <tr>
+          <th>Section</th>
+          <th>Server</th>
+          <th>Sidework</th>
+          <th>Outwork</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </section>
+
+  <script>
+    // --- Minimal config data ---
+    const sections = [
+      "15,22,23","14,13,112","11,12,21","114,123,134","113,133,124",
+      "121,122,111","411,412,413","131,132,211","414,415,212","213,214,234",
+      "215,216,334","221,222,231","233,232,223","224,235,236","237,226,225",
+      "312,322,332","416,417,418","311,321,331","313,323,333","302,303,304",
+      "314,325,335","315,324,336"
+    ];
+
+    const sidework = [
+      "Sweep section","Sanitize caddies","Restock ramekins","Restock napkins",
+      "Polish glasses","Restock straws","Restock dressings","Refill butter",
+      "Restock ranch","Honey-cin butter","Restock plates","Clean POS",
+      "Salt/Pepper check","Ketchup check","Mustard check","Sweep server alley",
+      "Clean soda heads","Restock lids","Wipe menus","Restock to-go bags",
+      "Kids crayons","Restock baskets"
+    ];
+
+    const outwork = [
+  "Closing Sidework", "Right side hot well", "Cold Well Wipe Down",
+  "Soda Station 1 & Syrup Pumps, Sweep Bar/Spot Sweep", "Cold Well Flips", "Tea 1",
+  "Front Check", "Sweep Bar Area", "Large trays and wipe down alley walls",
+  "Left side hotwell", "Soda Station 2 and bread plates", "Stock ALL To-go Supplies, Tea, & Coffee",
+  "Tea 2 and breadplates", "Stock Expo Pars / Clean Lemon Cutter", "Sweep and detail FOH pass",
+  "Small Trays", "Bread plates. All Countertops, bottom shelves", "Back Checker",
+  "Marry condiments", "Box Tops Tray Jacks detailed, MIRROR", "Coffee & Thorough Alley Sweep",
+  "Employee drinks, alley hand sink, alley POS", "Clean Sugar Bin, Make 20 BAGS of sugar, Sauce organized"
+];
+
+
+
+    // Build table rows
+    const tbody = document.getElementById('tbody');
+    sections.forEach((label, i)=>{
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = label; tr.appendChild(th);
+
+      // Column A: Server (droppable)
+      const tdA = document.createElement('td'); tdA.dataset.col = 'A'; tdA.innerHTML = '<div class="cell"></div>'; tr.appendChild(tdA);
+      // Column B: Sidework (static text)
+      const tdB = document.createElement('td'); tdB.dataset.col = 'B'; tdB.innerHTML = `<div class="cell">${sidework[i]||''}</div>`; tr.appendChild(tdB);
+      // Column C: Outwork (static text)
+      const tdC = document.createElement('td'); tdC.dataset.col = 'C'; tdC.innerHTML = `<div class="cell">${outwork[i]||''}</div>`; tr.appendChild(tdC);
+
+      tbody.appendChild(tr);
+    });
+
+    // --- Minimal drag & drop logic ---
+    const palette = document.getElementById('palette');
+    let draggedId = null;
+
+    // Start drag from a server item
+    palette.addEventListener('dragstart', (e)=>{
+      const it = e.target.closest('.item');
+      if(!it) return;
+      draggedId = it.dataset.id;
+      e.dataTransfer.setData('text/plain', it.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    // Allow drop on Server cells only
+    document.getElementById('grid').addEventListener('dragover', (e)=>{
+      const td = e.target.closest('td');
+      if(td && td.dataset.col === 'A') e.preventDefault();
+    });
+
+    // Drop into Server cell (A). If cell already has a server, move it back to palette.
+    document.getElementById('grid').addEventListener('drop', (e)=>{
+      const td = e.target.closest('td');
+      if(!td || td.dataset.col !== 'A') return;
+      e.preventDefault();
+      const cur = td.querySelector('.cell .item');
+      if (cur) palette.appendChild(cur); // free the cell
+      const source = palette.querySelector(`.item[data-id="${draggedId}"]`) || document.querySelector(`.item[data-id="${draggedId}"]`);
+      if (source) td.querySelector('.cell').appendChild(source);
+      draggedId = null;
+    });
+
+    // Allow moving a placed server back to the palette by dragging it out
+    document.addEventListener('dragstart', (e)=>{
+      const it = e.target.closest('.item');
+      if(!it) return;
+      draggedId = it.dataset.id;
+      e.dataTransfer.setData('text/plain', it.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    palette.addEventListener('dragover', (e)=> e.preventDefault());
+    palette.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      const el = document.querySelector(`.item[data-id="${draggedId}"]`);
+      if (el) palette.appendChild(el);
+      draggedId = null;
+    });
+  </script>
+</body>
+</html>
+
