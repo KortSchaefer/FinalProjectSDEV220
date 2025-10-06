@@ -14,12 +14,19 @@
     .grid th,.grid td{border:1px solid #2a2a2a;padding:6px}
     .grid thead th{background:#161616;color:#bbb}
     .grid tbody th{background:#161616;color:#bbb;width:140px}
-    .cell{height:44px;display:flex;align-items:center;justify-content:center}
+    .cell{min-height:44px;display:flex;align-items:center;justify-content:center}
     .empty-state{color:#777;font-size:13px;padding:4px 0}
+    .actions{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .actions button{padding:8px 14px;border:0;border-radius:6px;background:#2f6fed;color:#fff;cursor:pointer;font-size:13px;font-weight:600}
+    .actions button.secondary{background:#393939;color:#fff}
+    .actions button:disabled{opacity:0.6;cursor:not-allowed}
+    .status{font-size:12px;color:#9ad5ff;min-height:16px}
+    .status.error{color:#ff9090}
+    .json-preview{margin-top:16px}
+    .json-output{background:#0e0e0e;border:1px solid #2a2a2a;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word}
   </style>
 </head>
 <body>
-  <!-- LEFT: simple list of draggable "Django" objects -->
   <section class="palette" id="palette">
     <h2>Servers</h2>
     {% for server in servers %}
@@ -42,7 +49,6 @@
     {% endfor %}
   </section>
 
-  <!-- RIGHT: spreadsheet-like table -->
   <section class="sheet">
     <h2>Sections Grid</h2>
     <table class="grid" id="grid">
@@ -56,10 +62,22 @@
       </thead>
       <tbody id="tbody"></tbody>
     </table>
+
+    <div class="actions">
+      <button id="downloadJsonBtn" type="button">Download JSON</button>
+      <button id="exportCsvBtn" type="button" class="secondary">Export Spreadsheet</button>
+      <span id="exportStatus" class="status" role="status" aria-live="polite"></span>
+    </div>
+
+    <div class="json-preview">
+      <h2>JSON Preview</h2>
+      <pre id="jsonPreview" class="json-output"></pre>
+    </div>
   </section>
 
   <script>
-    // --- Minimal config data, will be replaced with more objects later ---
+    const exportUrl = "{% url 'servers:export_teamsheet' %}";
+
     const sections = [
       "15,22,23","14,13,112","11,12,21","114,123,134","113,133,124",
       "121,122,111","411,412,413","131,132,211","414,415,212","213,214,234",
@@ -78,39 +96,107 @@
     ];
 
     const outwork = [
-  "Closing Sidework", "Right side hot well", "Cold Well Wipe Down",
-  "Soda Station 1 & Syrup Pumps, Sweep Bar/Spot Sweep", "Cold Well Flips", "Tea 1",
-  "Front Check", "Sweep Bar Area", "Large trays and wipe down alley walls",
-  "Left side hotwell", "Soda Station 2 and bread plates", "Stock ALL To-go Supplies, Tea, & Coffee",
-  "Tea 2 and breadplates", "Stock Expo Pars / Clean Lemon Cutter", "Sweep and detail FOH pass",
-  "Small Trays", "Bread plates. All Countertops, bottom shelves", "Back Checker",
-  "Marry condiments", "Box Tops Tray Jacks detailed, MIRROR", "Coffee & Thorough Alley Sweep",
-  "Employee drinks, alley hand sink, alley POS", "Clean Sugar Bin, Make 20 BAGS of sugar, Sauce organized"
-];
+      "Closing Sidework", "Right side hot well", "Cold Well Wipe Down",
+      "Soda Station 1 & Syrup Pumps, Sweep Bar/Spot Sweep", "Cold Well Flips", "Tea 1",
+      "Front Check", "Sweep Bar Area", "Large trays and wipe down alley walls",
+      "Left side hotwell", "Soda Station 2 and bread plates", "Stock ALL To-go Supplies, Tea, & Coffee",
+      "Tea 2 and breadplates", "Stock Expo Pars / Clean Lemon Cutter", "Sweep and detail FOH pass",
+      "Small Trays", "Bread plates. All Countertops, bottom shelves", "Back Checker",
+      "Marry condiments", "Box Tops Tray Jacks detailed, MIRROR", "Coffee & Thorough Alley Sweep",
+      "Employee drinks, alley hand sink, alley POS", "Clean Sugar Bin, Make 20 BAGS of sugar, Sauce organized"
+    ];
 
-
-
-    // Build table rows
     const tbody = document.getElementById('tbody');
+
     sections.forEach((label, i)=>{
       const tr = document.createElement('tr');
       const th = document.createElement('th'); th.textContent = label; tr.appendChild(th);
 
-      // Column A: Server (droppable)
       const tdA = document.createElement('td'); tdA.dataset.col = 'A'; tdA.innerHTML = '<div class="cell"></div>'; tr.appendChild(tdA);
-      // Column B: Sidework (static text)
       const tdB = document.createElement('td'); tdB.dataset.col = 'B'; tdB.innerHTML = `<div class="cell">${sidework[i]||''}</div>`; tr.appendChild(tdB);
-      // Column C: Outwork (static text)
       const tdC = document.createElement('td'); tdC.dataset.col = 'C'; tdC.innerHTML = `<div class="cell">${outwork[i]||''}</div>`; tr.appendChild(tdC);
 
       tbody.appendChild(tr);
     });
 
-    // --- Minimal drag & drop logic ---
     const palette = document.getElementById('palette');
+    const grid = document.getElementById('grid');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const statusLabel = document.getElementById('exportStatus');
+    const jsonPreview = document.getElementById('jsonPreview');
     let draggedId = null;
+    let statusTimer = null;
 
-    // Start drag from a server item
+    const parseNumber = (value) => (value === undefined || value === '' ? null : Number(value));
+
+    const setStatus = (message, isError=false) => {
+      if(statusTimer){
+        clearTimeout(statusTimer);
+        statusTimer = null;
+      }
+      statusLabel.textContent = message || '';
+      statusLabel.classList.toggle('error', Boolean(isError));
+      if(message){
+        statusTimer = setTimeout(()=>{
+          statusLabel.textContent = '';
+          statusLabel.classList.remove('error');
+        }, 5000);
+      }
+    };
+
+    const getCookie = (name) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) {
+        return decodeURIComponent(parts.pop().split(';').shift());
+      }
+      return null;
+    };
+
+    const collectTeamSheet = () => sections.map((sectionLabel, index) => {
+      const row = tbody.children[index];
+      const serverEl = row.querySelector('td[data-col="A"] .item');
+      const side = sidework[index] || '';
+      const out = outwork[index] || '';
+      if (!serverEl) {
+        return {
+          section: sectionLabel,
+          sidework: side,
+          outwork: out,
+          server: null,
+        };
+      }
+      return {
+        section: sectionLabel,
+        sidework: side,
+        outwork: out,
+        server: {
+          id: serverEl.dataset.id || null,
+          name: serverEl.dataset.label || '',
+          upsellScore: parseNumber(serverEl.dataset.upsellScore),
+          sectionAssigned: serverEl.dataset.sectionAssigned || '',
+          timeIn: serverEl.dataset.timeIn || '',
+          hoursScheduled: parseNumber(serverEl.dataset.hoursScheduled),
+          lengthOfEmployment: parseNumber(serverEl.dataset.lengthOfEmployment),
+          maxGuests: parseNumber(serverEl.dataset.maxGuests),
+          pyos: parseNumber(serverEl.dataset.pyos),
+          pitty: parseNumber(serverEl.dataset.pitty),
+        },
+      };
+    });
+
+    const buildPayload = () => ({
+      generated_at: new Date().toISOString(),
+      rows: collectTeamSheet(),
+    });
+
+    const updateJsonPreview = () => {
+      const payload = buildPayload();
+      jsonPreview.textContent = JSON.stringify(payload, null, 2);
+      return payload;
+    };
+
     palette.addEventListener('dragstart', (e)=>{
       const it = e.target.closest('.item');
       if(!it) return;
@@ -119,25 +205,23 @@
       e.dataTransfer.effectAllowed = 'move';
     });
 
-    // Allow drop on Server cells only
-    document.getElementById('grid').addEventListener('dragover', (e)=>{
+    grid.addEventListener('dragover', (e)=>{
       const td = e.target.closest('td');
       if(td && td.dataset.col === 'A') e.preventDefault();
     });
 
-    // Drop into Server cell (A). If cell already has a server, move it back to palette.
-    document.getElementById('grid').addEventListener('drop', (e)=>{
+    grid.addEventListener('drop', (e)=>{
       const td = e.target.closest('td');
       if(!td || td.dataset.col !== 'A') return;
       e.preventDefault();
       const cur = td.querySelector('.cell .item');
-      if (cur) palette.appendChild(cur); // free the cell
-      const source = palette.querySelector(`.item[data-id="${draggedId}"]`) || document.querySelector(`.item[data-id="${draggedId}"]`);
+      if (cur) palette.appendChild(cur);
+      const source = document.querySelector(`.item[data-id="${draggedId}"]`);
       if (source) td.querySelector('.cell').appendChild(source);
       draggedId = null;
+      updateJsonPreview();
     });
 
-    // Allow moving a placed server back to the palette by dragging it out
     document.addEventListener('dragstart', (e)=>{
       const it = e.target.closest('.item');
       if(!it) return;
@@ -152,8 +236,73 @@
       const el = document.querySelector(`.item[data-id="${draggedId}"]`);
       if (el) palette.appendChild(el);
       draggedId = null;
+      updateJsonPreview();
     });
+
+    document.addEventListener('dragend', updateJsonPreview);
+
+    downloadJsonBtn.addEventListener('click', () => {
+      const payload = updateJsonPreview();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const filename = `teamsheet-${payload.generated_at.replace(/[:T]/g,'-').slice(0,19)}.json`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setStatus('JSON downloaded.');
+    });
+
+    exportCsvBtn.addEventListener('click', async () => {
+      const payload = updateJsonPreview();
+      const csrftoken = getCookie('csrftoken');
+      if(!csrftoken){
+        setStatus('Missing CSRF token; refresh the page and try again.', true);
+        return;
+      }
+
+      exportCsvBtn.disabled = true;
+      setStatus('Exporting…');
+      try {
+        const response = await fetch(exportUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Request failed (${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename=\"?(?<name>[^\";]+)\"?/);
+        const filename = match && match.groups && match.groups.name ? match.groups.name : `teamsheet-${payload.generated_at.replace(/[:T]/g,'-').slice(0,19)}.csv`;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setStatus('Spreadsheet downloaded.');
+      } catch (error) {
+        console.error(error);
+        setStatus('Export failed. See console for details.', true);
+      } finally {
+        exportCsvBtn.disabled = false;
+      }
+    });
+
+    updateJsonPreview();
   </script>
 </body>
 </html>
-
