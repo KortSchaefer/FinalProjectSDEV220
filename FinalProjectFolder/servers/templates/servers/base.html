@@ -36,8 +36,7 @@
         data-max-guests="{{ server.max_guests }}"
         data-pyos="{{ server.pyos }}"
         data-pitty="{{ server.pitty }}"
-      >{{ server.name }}
-    </div>
+      >{{ server.name }}</div>
     {% empty %}
       <p class="empty-state">No servers available. Add some in the admin.</p>
     {% endfor %}
