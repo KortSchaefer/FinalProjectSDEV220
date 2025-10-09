@@ -15,8 +15,31 @@ class Server(models.Model):
     pyos = models.IntegerField()
     pitty = models.IntegerField()
 
+class Section(models.Model):
+    Section_ID = models.IntegerField()
+    Tables = models.CharField(max_length=50) 
+    Guest_count = models.IntegerField()
+    Outwork_ID = models.IntegerField()
+    Sidework_ID = models.IntegerField()
+    Expected_in_time = models.TimeField()
+
+class Outwork:
+    Outwork_ID2 = models.IntegerField()
+    Section_ID2 = models.IntegerField()
+    Outwork_label = models.CharField() 
+    Outwork_difficulty = models.IntegerField()
+
+class Sidework:
+    Sidework_ID3= models.IntegerField()
+    Section_ID3= models.IntegerField()
+    Sidework_label= models.CharField()
+    Sidework_difficulty= models.IntegerField()
+
     def __str__(self):
         return self.name
+
+  
+
 
 
 class Post(models.Model):

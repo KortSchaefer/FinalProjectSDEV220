@@ -9,6 +9,9 @@ from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
 from .models import Server
+from .models import Section
+from .models import Outwork
+from .models import Sidework
 
 
 def index(request):
