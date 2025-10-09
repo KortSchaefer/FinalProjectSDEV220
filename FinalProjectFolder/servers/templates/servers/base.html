@@ -1,32 +1,36 @@
-﻿<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Team Sheet Creation</title>
+﻿{% extends 'servers/layout.html' %}
+
+{% block title %}Team Sheet Creation{% endblock %}
+
+{% block extra_styles %}
   <style>
-    *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
-    body{margin:0;display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;background:#111;color:#eee}
-    .palette,.sheet{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:10px}
-    h2{margin:0 0 8px;font-size:14px;color:#bbb}
-    .item{padding:8px 10px;margin:6px 0;border:1px solid #313131;border-radius:8px;background:#191919;cursor:grab}
-    .grid{width:100%;border-collapse:collapse;table-layout:fixed}
-    .grid th,.grid td{border:1px solid #2a2a2a;padding:6px}
-    .grid thead th{background:#161616;color:#bbb}
-    .grid tbody th{background:#161616;color:#bbb;width:140px}
-    .cell{min-height:44px;display:flex;align-items:center;justify-content:center}
-    .empty-state{color:#777;font-size:13px;padding:4px 0}
-    .actions{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .actions button{padding:8px 14px;border:0;border-radius:6px;background:#2f6fed;color:#fff;cursor:pointer;font-size:13px;font-weight:600}
-    .actions button.secondary{background:#393939;color:#fff}
-    .actions button:disabled{opacity:0.6;cursor:not-allowed}
-    .status{font-size:12px;color:#9ad5ff;min-height:16px}
-    .status.error{color:#ff9090}
-    .json-preview{margin-top:16px}
-    .json-output{background:#0e0e0e;border:1px solid #2a2a2a;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    main.page-body{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;}
+    .palette,.sheet{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:10px;}
+    h2{margin:0 0 8px;font-size:14px;color:#bbb;}
+    .item{padding:8px 10px;margin:6px 0;border:1px solid #313131;border-radius:8px;background:#191919;cursor:grab;}
+    .grid{width:100%;border-collapse:collapse;table-layout:fixed;}
+    .grid th,.grid td{border:1px solid #2a2a2a;padding:6px;}
+    .grid thead th{background:#161616;color:#bbb;}
+    .grid tbody th{background:#161616;color:#bbb;width:140px;}
+    .cell{min-height:44px;display:flex;align-items:center;justify-content:center;}
+    .empty-state{color:#777;font-size:13px;padding:4px 0;}
+    .actions{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .actions button{padding:8px 14px;border:0;border-radius:6px;background:#2f6fed;color:#fff;font-size:13px;font-weight:600;cursor:pointer;}
+    .actions button.secondary{background:#393939;}
+    .actions button:disabled{opacity:0.6;cursor:not-allowed;}
+    .status{font-size:12px;color:#9ad5ff;min-height:16px;}
+    .status.error{color:#ff9090;}
+    .json-preview{margin-top:16px;}
+    .json-output{background:#0e0e0e;border:1px solid #2a2a2a;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
+    @media (max-width:960px){
+      main.page-body{grid-template-columns:1fr;}
+      .palette{order:2;}
+      .sheet{order:1;}
+    }
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
   <section class="palette" id="palette">
     <h2>Servers</h2>
     {% for server in servers %}
@@ -74,7 +78,9 @@
       <pre id="jsonPreview" class="json-output"></pre>
     </div>
   </section>
+{% endblock %}
 
+{% block extra_scripts %}
   <script>
     const exportUrl = "{% url 'servers:export_teamsheet' %}";
 
@@ -107,6 +113,14 @@
     ];
 
     const tbody = document.getElementById('tbody');
+    const palette = document.getElementById('palette');
+    const grid = document.getElementById('grid');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const statusLabel = document.getElementById('exportStatus');
+    const jsonPreview = document.getElementById('jsonPreview');
+    let draggedId = null;
+    let statusTimer = null;
 
     sections.forEach((label, i)=>{
       const tr = document.createElement('tr');
@@ -118,15 +132,6 @@
 
       tbody.appendChild(tr);
     });
-
-    const palette = document.getElementById('palette');
-    const grid = document.getElementById('grid');
-    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
-    const exportCsvBtn = document.getElementById('exportCsvBtn');
-    const statusLabel = document.getElementById('exportStatus');
-    const jsonPreview = document.getElementById('jsonPreview');
-    let draggedId = null;
-    let statusTimer = null;
 
     const parseNumber = (value) => (value === undefined || value === '' ? null : Number(value));
 
@@ -283,7 +288,7 @@
 
         const blob = await response.blob();
         const disposition = response.headers.get('Content-Disposition') || '';
-        const match = disposition.match(/filename=\"?(?<name>[^\";]+)\"?/);
+        const match = disposition.match(/filename="?(?<name>[^";]+)"?/);
         const filename = match && match.groups && match.groups.name ? match.groups.name : `teamsheet-${payload.generated_at.replace(/[:T]/g,'-').slice(0,19)}.csv`;
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -304,5 +309,4 @@
 
     updateJsonPreview();
   </script>
-</body>
-</html>
+{% endblock %}

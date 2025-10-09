@@ -30,7 +30,7 @@ def export_teamsheet(request):
     if not isinstance(rows, list):
         return JsonResponse({"error": "Expected 'rows' to be a list."}, status=400)
 
-    output = io.StringIO()
+    output = io.StringIO() # in-memory file
     writer = csv.writer(output)
     writer.writerow([
         "Section",

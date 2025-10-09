@@ -19,16 +19,31 @@ class Server(models.Model):
         return self.name
 
 
-class Post(models.Model):
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    title = models.CharField(max_length=200)
-    text = models.TextField()
-    created_date = models.DateTimeField(default=timezone.now)
-    published_date = models.DateTimeField(blank=True, null=True)
-
-    def publish(self):
-        self.published_date = timezone.now()
-        self.save()
+class Section(models.Model):
+    Section_ID = models.IntegerField(primary_key=True)
+    Tables = models.CharField(max_length=50) 
+    Guest_count = models.IntegerField()
+    Expected_in_time = models.TimeField()
 
     def __str__(self):
-        return self.title
+        return f"Section {self.Section_ID}"   # fixed lowercase bug
+
+
+class Outwork(models.Model):   # must inherit from models.Model
+    Outwork_ID = models.IntegerField(primary_key=True)
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name="outworks")
+    Outwork_label = models.CharField(max_length=100)   # added max_length
+    Outwork_difficulty = models.IntegerField()
+
+    def __str__(self):
+        return self.Outwork_label   # fixed attribute name
+
+
+class Sidework(models.Model):   # must inherit from models.Model
+    Sidework_ID = models.IntegerField(primary_key=True)
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name="sideworks")  # unique related_name
+    Sidework_label = models.CharField(max_length=100)   # added max_length
+    Sidework_difficulty = models.IntegerField()
+
+    def __str__(self):
+        return self.Sidework_label   # fixed attribute name
