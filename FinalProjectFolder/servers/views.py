@@ -75,3 +75,15 @@ def export_teamsheet(request):
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     response["Content-Disposition"] = f'attachment; filename="teamsheet-{timestamp}.csv"'
     return response
+
+def Server_Section():#Written by: Derek Gerry, Sorted Highest to lowest
+    sorted_Guest_C = Section.objects.all().order_by('-Guest_count')
+    return sorted_Guest_C
+
+def server_list(request): # Written by: Derek Gerry. This is so we can see the list of servers to choose from.
+    svr = Server.objects.all()
+    return render(request, "servers.html", {"server": server})
+
+# def show_post(request):
+#     post = Post.objects.all()
+#     return render(request, "post_list.html", {"post": post})

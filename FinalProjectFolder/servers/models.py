@@ -1,7 +1,11 @@
 ﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
-
+#---------------------------
+import os
+import django
+import sys
+#--------------------------
 
 class Server(models.Model):
     id = models.CharField(max_length=50, primary_key=True)
