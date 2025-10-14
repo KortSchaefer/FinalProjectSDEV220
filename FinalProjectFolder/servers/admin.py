@@ -9,5 +9,4 @@ class ServerAdmin(admin.ModelAdmin):
     search_fields = ("id", "name", "sectionAssigned")
     ordering = ("name",)
 
-
 admin.site.register(Post)
