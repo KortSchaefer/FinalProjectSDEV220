@@ -3,13 +3,11 @@ numbers for each server into meaningful output. '''
 #-----------------------
 import os
 import django
-
-# Add the full path to your project's folder to the Python path
 import sys
+
 sys.path.append(r'c:\Users\derek\Derek_LG\IVY tech SDEV 220\Final Project things\FinalProjectSDEV220')
 
 # Configure Django settings module
-#os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'FinalProjectFolder.settings')
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "final_project_folder.settings")
 
 # Run the setup() function to load settings and populate the app registry
@@ -56,23 +54,17 @@ def run_algorithm():
     for server in all_servers:
         print(f"Processing server: {server.name}")
 
-        # Access specific model attributes
+        # Access specific model attributes. Bring these fields in from Models.Server
         assigned_number = server.id
-        
+        server_name = server.name
         upsell_score = server.upsellScore
+        assigned_area = server.sectionAssigned
+        start_time = server.timeIn
         hours_scheduled = server.hoursScheduled
-        #------------------------------------
-        # id = models.CharField(max_length=50, primary_key=True)
-        # name = models.CharField(max_length=100)
-        # upsellScore = models.IntegerField()
-        # sectionAssigned = models.CharField(max_length=50)
-        # timeIn = models.DateTimeField()
-        # hoursScheduled = models.IntegerField()
-        # length_of_employment = models.IntegerField()
-        # max_guests = models.IntegerField()
-        # pyos = models.IntegerField()
-        # pitty = models.IntegerField()
-        #------------------------------------
+        employed_time = server.length_of_employment
+        guest_number_max = server.max_guests
+        pick_your_section = server.pyos
+        server_pitty = server.pitty
 
         # Your algorithm logic goes here
         # For example, you can calculate a performance metric
@@ -82,25 +74,6 @@ def run_algorithm():
         # Example: Filter for servers that worked a lot
         if hours_scheduled > 30:
             print(f"  Note: {server.name} worked {hours_scheduled} hours this week.")
-
-
-
-#-------------------------------------------
-    
-#for eachServer in server:
-    #server = Server.views.server_list(All)
-
-#Bring these fields in from Models.Server
-    # id = models.CharField(max_length=50, primary_key=True)
-    # name = models.CharField(max_length=100)
-    # upsellScore = models.IntegerField()
-    # sectionAssigned = models.CharField(max_length=50)
-    # timeIn = models.DateTimeField()
-    # hoursScheduled = models.IntegerField()
-    # length_of_employment = models.IntegerField()
-    # max_guests = models.IntegerField()
-    # pyos = models.IntegerField()
-    # pitty = models.IntegerField()
 
 
 #2_Process the data
