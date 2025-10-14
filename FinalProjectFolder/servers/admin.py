@@ -1,5 +1,5 @@
 ﻿from django.contrib import admin
-from .models import Server, Section, Outwork, Sidework
+from .models import Server, Section, Outwork, Sidework, Host, Sa
 
 
 @admin.register(Server)
@@ -11,7 +11,7 @@ class ServerAdmin(admin.ModelAdmin):
 
 @admin.register(Section)
 class SectionAdmin(admin.ModelAdmin):
-    list_display = ("Section_ID", "Tables", "Guest_count", "Expected_in_time")
+    list_display = ("Section_ID", "Tables", "Guest_count", "Expected_in_time", "Section_score")
     search_fields = ("Section_ID", "Tables", "Guest_count")
     ordering = ("Section_ID",)
 
@@ -29,5 +29,16 @@ class SideworkAdmin(admin.ModelAdmin):
     search_fields = ("Sidework_ID", "Sidework_label")
     ordering = ("Sidework_ID",)
 
+@admin.register(Host)
+class hostAdmin(admin.ModelAdmin):
+    list_display = ("Host_ID", "Host_name")
+    search_fields = ("Host_ID", "Host_name")
+    ordering = ("Host_ID",)
+
+@admin.register(Sa)
+class saAdmin(admin.ModelAdmin):
+    list_display = ("sa_ID", "sa_name")
+    search_fields = ("sa_ID", "sa_name")
+    ordering = ("sa_ID",)
 
 

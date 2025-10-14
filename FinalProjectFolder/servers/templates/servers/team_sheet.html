@@ -1,0 +1,570 @@
+﻿{% extends 'servers/base.html' %}
+
+{% block page_title %}{{ page_title|default:'Team Sheet Creation' }}{% endblock %}
+
+{% block page_styles %}
+  <style>
+    main.page-body{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;}
+    .palette,.sheet{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:10px;}
+    h2{margin:0 0 8px;font-size:14px;color:#bbb;}
+    .item{padding:8px 10px;margin:6px 0;border:1px solid #313131;border-radius:8px;background:#191919;cursor:grab;}
+    .grid{width:100%;border-collapse:collapse;table-layout:fixed;}
+    .grid th,.grid td{border:1px solid #2a2a2a;padding:6px;}
+    .grid thead th{background:#161616;color:#bbb;}
+    .grid tbody th{background:#161616;color:#bbb;width:140px;}
+    .cell{min-height:44px;display:flex;align-items:center;justify-content:center;}
+    .empty-state{color:#777;font-size:13px;padding:4px 0;}
+    .actions{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .actions button{padding:8px 14px;border:0;border-radius:6px;background:#2f6fed;color:#fff;font-size:13px;font-weight:600;cursor:pointer;}
+    .actions button.secondary{background:#393939;}
+    .actions button:disabled{opacity:0.6;cursor:not-allowed;}
+    .status{font-size:12px;color:#9ad5ff;min-height:16px;}
+    .status.error{color:#ff9090;}
+    .json-preview{margin-top:16px;}
+    .json-output{background:#0e0e0e;border:1px solid #2a2a2a;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
+    .item-main{display:flex;flex-direction:column;gap:2px;}
+    .item-name{font-weight:600;color:#e5e5e5;}
+    .item-meta{font-size:12px;}
+    .stat{color:#9ad5ff;}
+    .stat-upsell--high{color:#60ff8f;}
+    .stat-upsell--low{color:#ff6666;}
+    @media (max-width:960px){
+      main.page-body{grid-template-columns:1fr;}
+      .palette{order:2;}
+      .sheet{order:1;}
+    }
+  </style>
+{% endblock %}
+
+{% block page_content %}
+  {% with heading=palette_title|default:'Entries' %}
+    <section class="palette" id="palette">
+      <h2>{{ heading }}</h2>
+      {% for item in items %}
+        <div
+          class="item"
+          draggable="true"
+          data-id="{{ item.id|default_if_none:'' }}"
+          data-label="{{ item.name|default:'' }}"
+          data-upsell-score="{{ item.upsellScore|default_if_none:'' }}"
+          data-section-assigned="{{ item.sectionAssigned|default_if_none:'' }}"
+          data-time-in="{% if item.timeIn %}{{ item.timeIn|date:'c' }}{% endif %}"
+          data-hours-scheduled="{{ item.hoursScheduled|default_if_none:'' }}"
+          data-length-of-employment="{{ item.lengthOfEmployment|default_if_none:'' }}"
+          data-max-guests="{{ item.maxGuests|default_if_none:'' }}"
+          data-pyos="{{ item.pyos|default_if_none:'' }}"
+          data-pitty="{{ item.pitty|default_if_none:'' }}"
+        >
+          <div class="item-main">
+            <span class="item-name">{{ item.name|default:'Unnamed' }}</span>
+            {% if item_key == 'server' %}
+              <span class="item-meta">
+                <span class="stat {% if item.upsellScore and item.upsellScore >= 95 %}stat-upsell--high{% else %}stat-upsell--low{% endif %}">
+                  Upsell: {{ item.upsellScore|default:'-' }}
+                </span>
+                <span class="stat">| In: {% if item.timeIn %}{{ item.timeIn|date:'g:i A' }}{% else %}-{% endif %}</span>
+                <span class="stat">| Hours: {{ item.hoursScheduled|default:'-' }}</span>
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      {% empty %}
+        {% with empty_name=empty_label|default:heading %}
+          <p class="empty-state">No {{ empty_name|default:'entries'|lower }} available. Add some in the admin.</p>
+        {% endwith %}
+      {% endfor %}
+    </section>
+  {% endwith %}
+
+  <section class="sheet">
+    <h2>Sections Grid</h2>
+    <table class="grid" id="grid">
+      <thead>
+        <tr>
+          <th>Section</th>
+          <th>{{ entity_label|default:'Entry' }}</th>
+          <th>Sidework</th>
+          <th>Outwork</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="actions">
+      <button id="downloadJsonBtn" type="button">Download JSON</button>
+      <button id="exportCsvBtn" type="button" class="secondary">Export Spreadsheet</button>
+      <span id="exportStatus" class="status" role="status" aria-live="polite"></span>
+    </div>
+
+    <div class="json-preview">
+      <h2>JSON Preview</h2>
+      <pre id="jsonPreview" class="json-output"></pre>
+    </div>
+  </section>
+{% endblock %}
+
+{% block page_scripts %}
+  {{ sections|json_script:"sections-data" }}
+  {{ sidework|json_script:"sidework-data" }}
+  {{ outwork|json_script:"outwork-data" }}
+  <script>
+    const exportUrl = "{{ export_url|default:''|escapejs }}";
+    const entityKey = "{{ item_key|default:'entry'|escapejs }}";
+    const downloadPrefix = "{{ download_prefix|default:'teamsheet'|escapejs }}";
+    const entityLabel = "{{ entity_label|default:palette_title|default:'Entry'|escapejs }}";
+
+    const parseNumber = (value) => (value === undefined || value === '' ? null : Number(value));
+
+    const parseJsonData = (id) => {
+      const el = document.getElementById(id);
+      if (!el) {
+        return [];
+      }
+      try {
+        return JSON.parse(el.textContent || '[]');
+      } catch (error) {
+        console.error(`Failed to parse JSON for ${id}`, error);
+        return [];
+      }
+    };
+
+    const sectionsRaw = parseJsonData('sections-data');
+    const sidework = parseJsonData('sidework-data');
+    const outwork = parseJsonData('outwork-data');
+
+    const sections = sectionsRaw.map((section, index) => {
+      if (typeof section === 'string') {
+        return { id: index + 1, label: section, score: 0 };
+      }
+      return {
+        id: section.id ?? section.Section_ID ?? index + 1,
+        label: section.label ?? section.Tables ?? `Section ${index + 1}`,
+        score: parseNumber(section.score ?? section.Section_score ?? 0) ?? 0,
+      };
+    });
+
+    const tbody = document.getElementById('tbody');
+    const palette = document.getElementById('palette');
+    const grid = document.getElementById('grid');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const statusLabel = document.getElementById('exportStatus');
+    const jsonPreview = document.getElementById('jsonPreview');
+    const autoAssignBtn = document.getElementById('autoAssignBtn');
+    const manualControls = window.manualImportControls || {};
+    const manualForm = manualControls.form || null;
+
+    let draggedId = null;
+    let statusTimer = null;
+
+    const rowBySectionId = new Map();
+
+    sections.forEach((section, index) => {
+      const tr = document.createElement('tr');
+      const sectionId = section.id ?? (index + 1);
+      tr.dataset.sectionId = sectionId;
+      tr.dataset.sectionScore = section.score ?? 0;
+
+      const th = document.createElement('th');
+      th.textContent = section.label ?? `Section ${sectionId}`;
+      tr.appendChild(th);
+
+      const tdA = document.createElement('td');
+      tdA.dataset.col = 'A';
+      tdA.innerHTML = '<div class="cell"></div>';
+      tr.appendChild(tdA);
+
+      const tdB = document.createElement('td');
+      tdB.dataset.col = 'B';
+      tdB.innerHTML = `<div class="cell">${sidework[index] || ''}</div>`;
+      tr.appendChild(tdB);
+
+      const tdC = document.createElement('td');
+      tdC.dataset.col = 'C';
+      tdC.innerHTML = `<div class="cell">${outwork[index] || ''}</div>`;
+      tr.appendChild(tdC);
+
+      tbody.appendChild(tr);
+      rowBySectionId.set(String(sectionId), tr);
+    });
+
+    const setStatus = (message, isError = false) => {
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+        statusTimer = null;
+      }
+      statusLabel.textContent = message || '';
+      statusLabel.classList.toggle('error', Boolean(isError));
+      if (message) {
+        statusTimer = setTimeout(() => {
+          statusLabel.textContent = '';
+          statusLabel.classList.remove('error');
+        }, 5000);
+      }
+    };
+
+    const getCookie = (name) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) {
+        return decodeURIComponent(parts.pop().split(';').shift());
+      }
+      return null;
+    };
+
+    const collectTeamSheet = () => sections.map((section, index) => {
+      const row = tbody.children[index];
+      const itemEl = row ? row.querySelector('td[data-col="A"] .item') : null;
+      const side = sidework[index] || '';
+      const out = outwork[index] || '';
+      const base = {
+        section_id: section.id ?? null,
+        section: section.label ?? `Section ${section.id ?? index + 1}`,
+        sidework: side,
+        outwork: out,
+      };
+      if (!itemEl) {
+        base[entityKey] = null;
+        return base;
+      }
+      base[entityKey] = {
+        id: itemEl.dataset.id || null,
+        name: itemEl.dataset.label || '',
+        upsellScore: parseNumber(itemEl.dataset.upsellScore),
+        sectionAssigned: itemEl.dataset.sectionAssigned || '',
+        timeIn: itemEl.dataset.timeIn || '',
+        hoursScheduled: parseNumber(itemEl.dataset.hoursScheduled),
+        lengthOfEmployment: parseNumber(itemEl.dataset.lengthOfEmployment),
+        maxGuests: parseNumber(itemEl.dataset.maxGuests),
+        pyos: parseNumber(itemEl.dataset.pyos),
+        pitty: parseNumber(itemEl.dataset.pitty),
+      };
+      return base;
+    });
+
+    const buildPayload = () => ({
+      generated_at: new Date().toISOString(),
+      entity_key: entityKey,
+      entity_label: entityLabel,
+      download_prefix: downloadPrefix,
+      rows: collectTeamSheet(),
+    });
+
+    const updateJsonPreview = () => {
+      const payload = buildPayload();
+      jsonPreview.textContent = JSON.stringify(payload, null, 2);
+      return payload;
+    };
+
+    const computeServerScore = (serverEl) => {
+      const upsell = parseNumber(serverEl.dataset.upsellScore) ?? 0;
+      const length = parseNumber(serverEl.dataset.lengthOfEmployment) ?? 0;
+      const pitty = parseNumber(serverEl.dataset.pitty) ?? 0;
+      const capacity = parseNumber(serverEl.dataset.maxGuests) ?? 0;
+      const randomComponent = Math.floor(Math.random() * 10) + 1;
+      return (upsell / 10) + Math.pow(length, 1 / 3.5) + pitty + (capacity / 2) + randomComponent;
+    };
+
+    const autoAssignServers = () => {
+      const allServerItems = Array.from(document.querySelectorAll('.item'));
+      if (!allServerItems.length) {
+        setStatus('No servers available for auto-assignment.', true);
+        return;
+      }
+
+      const sortedServers = allServerItems
+        .map((el) => ({ el, score: computeServerScore(el) }))
+        .sort((a, b) => b.score - a.score);
+
+      const sortedSections = [...sections]
+        .map((section, index) => ({
+          ...section,
+          score: parseNumber(section.score) ?? 0,
+          index,
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      if (!sortedSections.length) {
+        setStatus('No sections available for auto-assignment.', true);
+        return;
+      }
+
+      tbody.querySelectorAll('tr').forEach((row) => {
+        const assigned = row.querySelector('.item');
+        if (assigned) {
+          palette.appendChild(assigned);
+        }
+      });
+
+      const assignCount = Math.min(sortedServers.length, sortedSections.length);
+      for (let i = 0; i < assignCount; i += 1) {
+        const { el } = sortedServers[i];
+        const sectionInfo = sortedSections[i];
+        const sectionId = String(sectionInfo.id ?? sectionInfo.index + 1);
+        const row = rowBySectionId.get(sectionId);
+        if (!row) {
+          palette.appendChild(el);
+          continue;
+        }
+        const cell = row.querySelector('td[data-col="A"] .cell');
+        if (cell) {
+          cell.appendChild(el);
+        } else {
+          palette.appendChild(el);
+        }
+      }
+
+      setStatus('Servers auto-assigned by section score.');
+      updateJsonPreview();
+    };
+
+    if (autoAssignBtn) {
+      if (entityKey !== 'server') {
+        autoAssignBtn.disabled = true;
+        autoAssignBtn.title = 'Auto-assign is only available on the servers sheet.';
+      } else {
+        autoAssignBtn.disabled = false;
+        autoAssignBtn.addEventListener('click', autoAssignServers);
+      }
+    }
+
+    const formatDisplayTime = (isoString) => {
+      if (!isoString) return '-';
+      const date = new Date(isoString);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    };
+
+    const renderServerMarkup = (server) => {
+      const upsell = server.upsellScore ?? '-';
+      const upsellClass = typeof server.upsellScore === 'number' && server.upsellScore >= 95
+        ? 'stat-upsell--high'
+        : 'stat-upsell--low';
+      const timeDisplay = formatDisplayTime(server.timeIn);
+      const hoursDisplay = server.hoursScheduled ?? '-';
+      return `
+        <div class="item-main">
+          <span class="item-name">${server.name || 'Unnamed'}</span>
+          <span class="item-meta">
+            <span class="stat ${upsellClass}">Upsell: ${upsell}</span>
+            <span class="stat">| In: ${timeDisplay}</span>
+            <span class="stat">| Hours: ${hoursDisplay}</span>
+          </span>
+        </div>
+      `;
+    };
+
+    const createServerItem = (server) => {
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.setAttribute('draggable', 'true');
+      item.dataset.id = server.id ?? '';
+      item.dataset.label = server.name ?? '';
+      item.dataset.upsellScore = server.upsellScore ?? '';
+      item.dataset.sectionAssigned = server.sectionAssigned ?? '';
+      item.dataset.timeIn = server.timeIn ?? '';
+      item.dataset.hoursScheduled = server.hoursScheduled ?? '';
+      item.dataset.lengthOfEmployment = server.lengthOfEmployment ?? '';
+      item.dataset.maxGuests = server.maxGuests ?? '';
+      item.dataset.pyos = server.pyos ?? '';
+      item.dataset.pitty = server.pitty ?? '';
+      item.innerHTML = renderServerMarkup(server);
+      return item;
+    };
+
+    const ensureServerId = (value) => {
+      const trimmed = (value || '').trim();
+      if (trimmed) return trimmed;
+      return `server-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+    };
+
+    const normalizeNumber = (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      const num = Number(value);
+      return Number.isNaN(num) ? null : num;
+    };
+
+    const normalizeTime = (value) => {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toISOString();
+    };
+
+    if (manualControls.manualOption) {
+      manualControls.manualOption.disabled = entityKey !== 'server';
+      if (entityKey !== 'server') {
+        manualControls.manualOption.title = 'Manual import is available only on the servers sheet.';
+      }
+    }
+
+    if (manualControls.automaticOption) {
+      manualControls.automaticOption.disabled = false;
+    }
+
+    if (manualForm) {
+      manualForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (entityKey !== 'server') {
+          setStatus('Manual import is only available on the servers sheet.', true);
+          return;
+        }
+        const formData = new FormData(manualForm);
+        const server = {
+          id: ensureServerId(formData.get('id')),
+          name: (formData.get('name') || '').trim(),
+          upsellScore: normalizeNumber(formData.get('upsellScore')),
+          sectionAssigned: (formData.get('sectionAssigned') || '').trim(),
+          timeIn: normalizeTime(formData.get('timeIn')),
+          hoursScheduled: normalizeNumber(formData.get('hoursScheduled')),
+          lengthOfEmployment: normalizeNumber(formData.get('lengthOfEmployment')),
+          maxGuests: normalizeNumber(formData.get('maxGuests')),
+          pyos: normalizeNumber(formData.get('pyos')),
+          pitty: normalizeNumber(formData.get('pitty')),
+        };
+
+        if (!server.name) {
+          setStatus('Server name is required.', true);
+          return;
+        }
+
+        const item = createServerItem(server);
+        palette.appendChild(item);
+        document.dispatchEvent(new CustomEvent('import:manual-close'));
+        manualForm.reset();
+        setStatus(`Server "${server.name}" added manually.`);
+        updateJsonPreview();
+      });
+    }
+
+    document.addEventListener('import:manual-request', () => {
+      if (entityKey !== 'server') {
+        setStatus('Manual import is only available on the servers sheet.', true);
+        return;
+      }
+      document.dispatchEvent(new CustomEvent('import:manual-open'));
+    });
+
+    document.addEventListener('import:manual-close', () => {
+      if (manualForm) {
+        manualForm.reset();
+      }
+    });
+
+    document.addEventListener('import:automatic-request', () => {
+      setStatus('Automatic import is coming soon.', false);
+    });
+
+    palette.addEventListener('dragstart', (e) => {
+      const it = e.target.closest('.item');
+      if (!it) return;
+      draggedId = it.dataset.id;
+      e.dataTransfer.setData('text/plain', it.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    grid.addEventListener('dragover', (e) => {
+      const td = e.target.closest('td');
+      if (td && td.dataset.col === 'A') e.preventDefault();
+    });
+
+    grid.addEventListener('drop', (e) => {
+      const td = e.target.closest('td');
+      if (!td || td.dataset.col !== 'A') return;
+      e.preventDefault();
+      const cur = td.querySelector('.cell .item');
+      if (cur) palette.appendChild(cur);
+      const source = document.querySelector(`.item[data-id="${draggedId}"]`);
+      if (source) td.querySelector('.cell').appendChild(source);
+      draggedId = null;
+      updateJsonPreview();
+    });
+
+    document.addEventListener('dragstart', (e) => {
+      const it = e.target.closest('.item');
+      if (!it) return;
+      draggedId = it.dataset.id;
+      e.dataTransfer.setData('text/plain', it.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    palette.addEventListener('dragover', (e) => e.preventDefault());
+    palette.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const el = document.querySelector(`.item[data-id="${draggedId}"]`);
+      if (el) palette.appendChild(el);
+      draggedId = null;
+      updateJsonPreview();
+    });
+
+    document.addEventListener('dragend', updateJsonPreview);
+
+    downloadJsonBtn.addEventListener('click', () => {
+      const payload = updateJsonPreview();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const filename = `${downloadPrefix}-${payload.generated_at.replace(/[:T]/g, '-').slice(0, 19)}.json`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setStatus('JSON downloaded.');
+    });
+
+    exportCsvBtn.addEventListener('click', async () => {
+      const payload = updateJsonPreview();
+      if (!exportUrl) {
+        setStatus('Export URL not configured.', true);
+        return;
+      }
+      const csrftoken = getCookie('csrftoken');
+      if (!csrftoken) {
+        setStatus('Missing CSRF token; refresh the page and try again.', true);
+        return;
+      }
+
+      exportCsvBtn.disabled = true;
+      setStatus('Exporting.');
+      try {
+        const response = await fetch(exportUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Request failed (${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?(?<name>[^";]+)"?/);
+        const fallbackName = `${downloadPrefix}-${payload.generated_at.replace(/[:T]/g, '-').slice(0, 19)}.csv`;
+        const filename = match && match.groups && match.groups.name ? match.groups.name : fallbackName;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setStatus('Spreadsheet downloaded.');
+      } catch (error) {
+        console.error(error);
+        setStatus('Export failed. See console for details.', true);
+      } finally {
+        exportCsvBtn.disabled = false;
+      }
+    });
+
+    updateJsonPreview();
+  </script>
+{% endblock %}

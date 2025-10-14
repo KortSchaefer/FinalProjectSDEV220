@@ -8,12 +8,43 @@
     :root { color-scheme: dark; }
     *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
     body{margin:0;background:#111;color:#eee;min-height:100vh;display:flex;flex-direction:column;}
-    .navbar{background:#1a1a1a;border-bottom:1px solid #262626;}
+    .navbar{background:linear-gradient(135deg,#0f172a,#111b33);border-bottom:1px solid rgba(59,130,246,.35);position:sticky;top:0;z-index:30;}
+    
     .nav-container{max-width:1200px;margin:0 auto;padding:12px 16px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+    .brand{display:flex;flex-direction:column;gap:4px;}
+    .brand-title{font-size:20px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;background:linear-gradient(135deg,#60a5fa,#93c5fd);-webkit-background-clip:text;color:transparent;}
+    .brand-subtitle{font-size:13px;color:#bfdbfe;letter-spacing:0.4px;text-transform:uppercase;}
     .nav-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-    .nav-button{padding:8px 14px;border:1px solid #2f6fed;border-radius:6px;background:#2f6fed;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s,border-color .2s,transform .2s;}
-    .nav-button:hover{background:#2251d1;border-color:#2251d1;transform:translateY(-1px);}
-    .nav-button:focus-visible{outline:2px solid #60a5fa;outline-offset:2px;}
+    .nav-button{display:inline-block;padding:10px 18px;border:1px solid #3b82f6;border-radius:999px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#f4f7ff;font-size:13px;font-weight:700;letter-spacing:0.35px;text-transform:uppercase;cursor:pointer;transition:background .2s,border-color .2s,transform .2s,box-shadow .2s;text-decoration:none;}
+    .nav-button:hover{background:linear-gradient(135deg,#1d4ed8,#3464f0);border-color:#3464f0;box-shadow:0 8px 18px rgba(37,99,235,.25);transform:translateY(-1px);text-decoration:none;}
+    .nav-button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px;}
+    .nav-button.is-active{background:linear-gradient(135deg,#1f3fa6,#2f58d5);border-color:#2f58d5;box-shadow:0 10px 24px rgba(37,99,235,.32);cursor:default;}
+    .nav-button[disabled]{opacity:.6;cursor:not-allowed;transform:none;}
+    .menu-wrapper{position:relative;}
+    .menu-panel{position:absolute;top:calc(100% + 6px);right:0;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.35);min-width:200px;padding:6px 0;display:none;z-index:20;}
+    .menu-panel.is-visible{display:block;}
+    .menu-item{display:block;width:100%;padding:10px 16px;background:none;border:0;text-align:left;font-size:14px;color:#f2f2f2;cursor:pointer;}
+    .menu-item:hover,.menu-item:focus{background:#2f2f2f;}
+    .menu-item[disabled]{opacity:.6;cursor:not-allowed;}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:40;padding:20px;}
+    .modal-backdrop.is-visible{display:flex;}
+    .modal{background:#121212;border:1px solid #2a2a2a;border-radius:12px;padding:20px;max-width:520px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.45);}
+    .modal header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+    .modal h2{margin:0;font-size:18px;color:#f5f5f5;}
+    .modal button.close-btn{background:none;border:0;color:#c9c9c9;font-size:22px;cursor:pointer;padding:0 6px;}
+    .modal button.close-btn:hover{color:#ffffff;}
+    .modal form{display:grid;gap:12px;}
+    .modal label{display:flex;flex-direction:column;font-size:14px;color:#d7d7d7;gap:6px;}
+    .modal input,.modal select,.modal textarea{padding:10px;border-radius:6px;border:1px solid #363636;background:#181818;color:#f0f0f0;font-size:14px;}
+    .modal .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+    .modal footer{display:flex;justify-content:flex-end;gap:10px;margin-top:12px;}
+    .modal .btn{padding:10px 16px;border-radius:6px;border:0;font-size:14px;font-weight:600;cursor:pointer;}
+    .modal .btn.secondary{background:#2e2e2e;color:#f5f5f5;}
+    .modal .btn.primary{background:#2f6fed;color:#fff;}
+
+    @media(max-width:500px){
+      .modal .form-grid{grid-template-columns:1fr;}
+    }
     main.page-body{flex:1;display:block;width:100%;}
     @media (max-width:768px){
       .nav-container{flex-direction:column;align-items:stretch;}
@@ -23,23 +54,194 @@
   {% block extra_styles %}{% endblock %}
 </head>
 <body>
+  
   <header class="navbar">
     <nav class="nav-container" aria-label="Primary">
-      <div class="nav-group">
-        <button class="nav-button" type="button">Servers</button>
-        <button class="nav-button" type="button">Hosts</button>
-        <button class="nav-button" type="button">SA's</button>
+      <div class="brand">
+        <span class="brand-title">Team Sheet Studio</span>
+        <span class="brand-subtitle">Optimize floor coverage with confidence</span>
       </div>
       <div class="nav-group">
-        <button class="nav-button" type="button">Auto-Assign</button>
+        {% with nav_active|default:'servers' as active_nav %}
+          <a class="nav-button{% if active_nav == 'servers' %} is-active{% endif %}" href="{% url 'servers:index' %}" {% if active_nav == 'servers' %}aria-current="page"{% endif %}>Servers</a>
+          <a class="nav-button{% if active_nav == 'hosts' %} is-active{% endif %}" href="{% url 'servers:host_sheet' %}" {% if active_nav == 'hosts' %}aria-current="page"{% endif %}>Hosts</a>
+          <a class="nav-button{% if active_nav == 'sas' %} is-active{% endif %}" href="{% url 'servers:sa_sheet' %}" {% if active_nav == 'sas' %}aria-current="page"{% endif %}>SAs</a>
+        {% endwith %}
+      </div>
+      <div class="nav-group">
+        <button class="nav-button" type="button" id="autoAssignBtn">Auto-Assign</button>
         <button class="nav-button" type="button">Change Sheet</button>
-        <button class="nav-button" type="button">Import Data</button>
+        <div class="menu-wrapper">
+          <button class="nav-button" type="button" id="importMenuBtn" aria-haspopup="true" aria-expanded="false">
+            Import Data ▾
+          </button>
+          <div class="menu-panel" id="importMenu" role="menu" aria-labelledby="importMenuBtn">
+            <button class="menu-item" type="button" data-import-mode="manual">Manual</button>
+            <button class="menu-item" type="button" data-import-mode="automatic">Automatic</button>
+          </div>
+        </div>
       </div>
     </nav>
   </header>
   <main class="page-body">
     {% block content %}{% endblock %}
   </main>
+  <div class="modal-backdrop" id="manualImportModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <header>
+        <h2>Manual Server Entry</h2>
+        <button class="close-btn" type="button" aria-label="Close">&times;</button>
+      </header>
+      <form id="manualImportForm">
+        <div class="form-grid">
+          <label>Server ID
+            <input type="text" name="id" placeholder="e.g. SVR-101" autocomplete="off" />
+          </label>
+          <label>Server Name*
+            <input type="text" name="name" placeholder="Jane Doe" required autocomplete="off" />
+          </label>
+          <label>Upsell Score
+            <input type="number" name="upsellScore" min="0" max="999" step="1" placeholder="100" />
+          </label>
+          <label>Section Assigned
+            <input type="text" name="sectionAssigned" placeholder="Section 1" />
+          </label>
+          <label>Time In
+            <input type="datetime-local" name="timeIn" />
+          </label>
+          <label>Hours Scheduled
+            <input type="number" name="hoursScheduled" min="0" max="24" step="0.25" />
+          </label>
+          <label>Length of Employment (months)
+            <input type="number" name="lengthOfEmployment" min="0" step="1" />
+          </label>
+          <label>Max Guests
+            <input type="number" name="maxGuests" min="0" step="1" />
+          </label>
+          <label>PYOS
+            <input type="number" name="pyos" min="0" step="1" />
+          </label>
+          <label>Pitty
+            <input type="number" name="pitty" min="0" step="1" />
+          </label>
+        </div>
+        <footer>
+          <button type="button" class="btn secondary" id="manualCancelBtn">Cancel</button>
+          <button type="submit" class="btn primary">Add Server</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const importBtn = document.getElementById('importMenuBtn');
+      const importMenu = document.getElementById('importMenu');
+      const manualOption = importMenu ? importMenu.querySelector('[data-import-mode="manual"]') : null;
+      const automaticOption = importMenu ? importMenu.querySelector('[data-import-mode="automatic"]') : null;
+      const modalBackdrop = document.getElementById('manualImportModal');
+      const manualForm = document.getElementById('manualImportForm');
+      const modalCloseBtn = modalBackdrop ? modalBackdrop.querySelector('.close-btn') : null;
+      const modalCancelBtn = document.getElementById('manualCancelBtn');
+
+      const closeMenu = () => {
+        if (importBtn && importMenu) {
+          importMenu.classList.remove('is-visible');
+          importBtn.setAttribute('aria-expanded', 'false');
+        }
+      };
+
+      const openMenu = () => {
+        if (importBtn && importMenu) {
+          importMenu.classList.add('is-visible');
+          importBtn.setAttribute('aria-expanded', 'true');
+        }
+      };
+
+      if (importBtn && importMenu) {
+        importBtn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (importMenu.classList.contains('is-visible')) {
+            closeMenu();
+          } else {
+            openMenu();
+          }
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!importMenu.contains(event.target) && event.target !== importBtn) {
+            closeMenu();
+          }
+        });
+      }
+
+      const dispatch = (name, detail) => {
+        document.dispatchEvent(new CustomEvent(name, { detail }));
+      };
+
+      if (manualOption) {
+        manualOption.addEventListener('click', () => {
+          closeMenu();
+          dispatch('import:manual-request', {});
+        });
+      }
+
+      if (automaticOption) {
+        automaticOption.addEventListener('click', () => {
+          closeMenu();
+          dispatch('import:automatic-request', {});
+        });
+      }
+
+      const openModal = () => {
+        if (!modalBackdrop) return;
+        modalBackdrop.classList.add('is-visible');
+        modalBackdrop.setAttribute('aria-hidden', 'false');
+        const firstInput = manualForm ? manualForm.querySelector('input,select,textarea') : null;
+        if (firstInput) {
+          firstInput.focus();
+        }
+      };
+
+      const closeModal = () => {
+        if (!modalBackdrop) return;
+        modalBackdrop.classList.remove('is-visible');
+        modalBackdrop.setAttribute('aria-hidden', 'true');
+      };
+
+      if (modalBackdrop) {
+        modalBackdrop.addEventListener('click', (event) => {
+          if (event.target === modalBackdrop) {
+            dispatch('import:manual-close');
+          }
+        });
+      }
+
+      if (modalCloseBtn) {
+        modalCloseBtn.addEventListener('click', () => dispatch('import:manual-close'));
+      }
+
+      if (modalCancelBtn) {
+        modalCancelBtn.addEventListener('click', () => dispatch('import:manual-close'));
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modalBackdrop && modalBackdrop.classList.contains('is-visible')) {
+          dispatch('import:manual-close');
+        }
+      });
+
+      document.addEventListener('import:manual-open', openModal);
+      document.addEventListener('import:manual-close', closeModal);
+
+      window.manualImportControls = {
+        form: manualForm,
+        openModal,
+        closeModal,
+        manualOption,
+        automaticOption,
+      };
+    })();
+  </script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>
