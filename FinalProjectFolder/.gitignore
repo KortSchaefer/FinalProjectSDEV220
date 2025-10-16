@@ -1,3 +1,66 @@
 
+# ===========================
+# Python / Django .gitignore
+# ===========================
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Django stuff
+*.log
+*.pot
 *.pyc
+*.pyo
+*.pyd
+*.mo
+*.db
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Local Django settings (if you have settings_local.py)
+settings_local.py
+
+# Virtual environment
+venv/
+env/
+.myvenv/
+.myenv/
+FinalProjectFolder/venv/
+FinalProjectFolder/myvenv/
+
+# VSCode / IDE
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Migrations cache
+*/migrations/__pycache__/
+
+# Python egg files
+*.egg-info/
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Coverage / testing
+htmlcov/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+
+# Jupyter / IPython
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.*
